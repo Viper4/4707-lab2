@@ -59,6 +59,7 @@ typedef struct
 	 * StrategyNotifyBgWriter.
 	 */
 	int			bgwprocno;
+	int last_accessed = 0; // timestamp of last access for Top 10 LRu
 
 } BufferStrategyControl;
 
@@ -357,6 +358,7 @@ have_free_buffer(void)
 // 	}
 // }
 int Top10LRU_count = 0;
+int timestamp = 1;
 BufferDesc *
 StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring)
 {
@@ -376,6 +378,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		buf = GetBufferFromRing(strategy, buf_state);
 		if (buf != NULL)
 		{
+			buf->last_accessed = timestamp; // Update last accessed timestamp for LRU
+			timestamp++; // Increase timestamp for next access
 			*from_ring = true;
 			return buf;
 		}
@@ -393,19 +397,19 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	 * deallocated the worst consequence of that is that we set the latch of
 	 * some arbitrary process.
 	 */
-	// bgwprocno = INT_ACCESS_ONCE(StrategyControl->bgwprocno);
-	// if (bgwprocno != -1)
-	// {
-	// 	/* reset bgwprocno first, before setting the latch */
-	// 	StrategyControl->bgwprocno = -1;
+	bgwprocno = INT_ACCESS_ONCE(StrategyControl->bgwprocno);
+	if (bgwprocno != -1)
+	{
+		/* reset bgwprocno first, before setting the latch */
+		StrategyControl->bgwprocno = -1;
 
-	// 	/*
-	// 	 * Not acquiring ProcArrayLock here which is slightly icky. It's
-	// 	 * actually fine because procLatch isn't ever freed, so we just can
-	// 	 * potentially set the wrong process' (or no process') latch.
-	// 	 */
-	// 	SetLatch(&ProcGlobal->allProcs[bgwprocno].procLatch);
-	// }
+		/*
+		 * Not acquiring ProcArrayLock here which is slightly icky. It's
+		 * actually fine because procLatch isn't ever freed, so we just can
+		 * potentially set the wrong process' (or no process') latch.
+		 */
+		SetLatch(&ProcGlobal->allProcs[bgwprocno].procLatch);
+	}
 
 	/*
 	 * We count buffer allocation requests so that the bgwriter can estimate
@@ -466,6 +470,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 			local_buf_state = LockBufHdr(buf);
 			if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0 && BUF_STATE_GET_USAGECOUNT(local_buf_state) == 0)
 			{
+				buf->last_accessed = timestamp; // Update last accessed timestamp for LRU
+				timestamp++; // Increase timestamp for next access
 				if (strategy != NULL)
 					AddBufferToRing(strategy, buf);
 				*buf_state = local_buf_state;
@@ -478,16 +484,26 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	/* Nothing on the freelist, so run the "clock sweep" algorithm */
 	//NOW WANT TO RUN TOP 10 LRU 
 	trycounter = NBuffers;
-	for (;;)
-	{
-		BufferDesc *victims[10];
-		int vic_count = 0;
 
-		for (int i = 0; i < NBuffers; i++) {
-			buf = GetBufferDescriptor(i);
-			
+	BufferDesc *victims[10];
+	int victims_timestamps[10];
+	int vic_count = 0;
+	int vic_index = 0;
+
+	for (int i = 0; i < NBuffers; i++) {
+		buf = GetBufferDescriptor(i);
+		
+	}
+	printf("Candidate buffers: ");
+	for (int i = 0; i < vic_count; i ++) {
+		printf("%u:%u", timestamp - victims[i], victims_timestamps[i]);
+		if (i != vic_count - 1) {
+			printf(", ")
 		}
 	}
+	print("\n")
+	printf("Counter: %d\n", Top10LRU_count);
+	printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index], victims_timestamps[vic_index]);
 }
 
 /*
