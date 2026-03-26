@@ -355,6 +355,7 @@ have_free_buffer(void)
 // 		UnlockBufHdr(buf, local_buf_state);
 // 	}
 // }
+
 int Top10LRU_count = 0;
 int timestamp = 1;
 BufferDesc *
@@ -492,23 +493,6 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		local_buf_state = LockBufHdr(buf);
 
 		if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0 && BUF_STATE_GET_USAGECOUNT(local_buf_state) == 0) {
-			// if (vic_count < 10) {
-			// 	victims[vic_count] = buf;
-			// 	victims_timestamps[vic_count] = buf->last_accessed;
-			// 	vic_count++;
-			// } else {
-			// 	// Find the oldest victim  
-			// 	int index = 0;
-			// 	for (int j = 1; j < 10; j++) {
-			// 		if (victims_timestamps[j] > victims_timestamps[index]) {
-			// 			index = j;
-			// 		}
-			// 	}
-			// 	if (buf->last_accessed < victims_timestamps[index]) {
-			// 		victims[index] = buf;
-			// 		victims_timestamps[index] = buf->last_accessed;
-			// 	}
-			// }
 			victims[vic_count] = buf;
 			vic_count++;
 		}
@@ -528,14 +512,22 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		}
 	}
 
+	//check if vic_count is more or less than 10 for LRU
+	//if buffer is more than 10 we only want the first 10 for LRU
+	if (vic_count > 10) {
+		vic_count = 10;
+	}
+
 	//get index of victim to remove, if counter is greater than 10 need to reset counter
-	if (Top10LRU_count >= 10) {
-		Top10LRU_count = Top10LRU_count % 10; //reset counter 
-		vic_index = Top10LRU_count; //index of victim to remove
-		Top10LRU_count++; //increase counter for next victim
+	if (Top10LRU_count >= vic_count) {
+		vic_index = vic_count -1; //index of victim to remove
+		Top10LRU_count = 0; //reset counter, 10 victims removed so reset to c=0
 	} else {
 		vic_index = Top10LRU_count; 
 		Top10LRU_count++;
+		if (Top10LRU_count >= 10) {
+			Top10LRU_count = 0; //reset counter, 10 victims removed, reset to c = 0
+		}
 	}
 
 	printf("\nCandidate buffers: ");
