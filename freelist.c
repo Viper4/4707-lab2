@@ -554,8 +554,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	printf("Available Page Spaces: %d\n", PageGetFreeSpace(pg));
 
 	/* Found a usable buffer */
-	local_buf_state = LockBufHdr(vic_remove);
 	BufferDesc *vic_remove = victims[vic_index];
+	local_buf_state = LockBufHdr(vic_remove);
 	vic_remove->last_accessed = timestamp; //Upadate last accessed timestamp for LRU
 	timestamp++; //incrase timestamp for next access
 	if (strategy != NULL)
