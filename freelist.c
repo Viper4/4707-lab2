@@ -492,18 +492,60 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 
 	for (int i = 0; i < NBuffers; i++) {
 		buf = GetBufferDescriptor(i);
-		
+		local_buf_state = LockBufHdr(buf);
+
+		if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0) {
+			if (vic_count < 10) {
+				victims[vic_count] = buf;
+				victims_timestamps[vic_count] = buf->last_accessed;
+				vic_count++;
+			} else {
+				// Find the oldest victim  
+				int index = 0;
+				for (int j = 1; j < 10; j++) {
+					if (victims_timestamps[j] > victims_timestamps[index]) {
+						index = j;
+					}
+				}
+				if (buf->last_accessed < victims_timestamps[index]) {
+					victims[index] = buf;
+					victims_timestamps[index] = buf->last_accessed;
+				}
+			}
+		}
+
+
+		UnlockBufHdr(buf, local_buf_state);
 	}
-	printf("Candidate buffers: ");
+
+	if (Top10LRU_count >= vic_count) {
+		vic_index = vic_count -1;
+		Top10LRU_count = 0; //reset counter 
+	} else {
+		vic_index = Top10LRU_count; 
+		Top10LRU_count++;
+	}
+
+	printf("\nCandidate buffers: ");
 	for (int i = 0; i < vic_count; i ++) {
-		printf("%u:%u", timestamp - victims[i], victims_timestamps[i]);
+		printf("%u:%u", timestamp - victims[i]->last_accessed, victims_timestamps[i]);
 		if (i != vic_count - 1) {
 			printf(", ")
 		}
 	}
-	print("\n")
-	printf("Counter: %d\n", Top10LRU_count);
+	printf("\nCounter: %d\n", Top10LRU_count);
 	printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index], victims_timestamps[vic_index]);
+	printf("Available Page Spaces: %d\n", PageGetFreeSpace(victims[vic_index]->page));
+
+	/* Found a usable buffer */
+	buf = victims[vic_index];
+	buf->last_accessed = timestamp; //Upadate last accessed timestamp for LRU
+	timestamp++; //incrase timestamp for next access
+	local_buf_state = LockBufHdr(buf);
+	if (strategy != NULL)
+		AddBufferToRing(strategy, buf);
+	*buf_state = local_buf_state;
+	return buf;
 }
 
 /*
