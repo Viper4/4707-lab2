@@ -59,9 +59,6 @@ typedef struct
 	 * StrategyNotifyBgWriter.
 	 */
 	int			bgwprocno;
-	int last_accessed = 0; // timestamp of last access for Top 10 LRU
-	//Want in BufferDesc, storage/buf_internals.h, added here for now but should move when file is added.
-
 } BufferStrategyControl;
 
 /* Pointers to shared state */
