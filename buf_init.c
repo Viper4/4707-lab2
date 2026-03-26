@@ -126,6 +126,8 @@ InitBufferPool(void)
 
 			buf->buf_id = i;
 
+			buf->last_accessed = 0; //initialize last accessed to 0 for LRU
+
 			/*
 			 * Initially link all the buffers together as unused. Subsequent
 			 * management of this list is done by freelist.c.

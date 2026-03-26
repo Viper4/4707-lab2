@@ -59,7 +59,8 @@ typedef struct
 	 * StrategyNotifyBgWriter.
 	 */
 	int			bgwprocno;
-	int last_accessed = 0; // timestamp of last access for Top 10 LRu
+	int last_accessed = 0; // timestamp of last access for Top 10 LRU
+	//Want in BufferDesc, storage/buf_internals.h, added here for now but should move when file is added.
 
 } BufferStrategyControl;
 
@@ -530,12 +531,13 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	for (int i = 0; i < vic_count; i ++) {
 		printf("%u:%u", timestamp - victims[i]->last_accessed, victims_timestamps[i]);
 		if (i != vic_count - 1) {
-			printf(", ")
+			printf(", ");
 		}
 	}
 	printf("\nCounter: %d\n", Top10LRU_count);
-	printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index], victims_timestamps[vic_index]);
-	printf("Available Page Spaces: %d\n", PageGetFreeSpace(victims[vic_index]->page));
+	printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index]->last_accessed, victims_timestamps[vic_index]->last_accessed);
+	Page pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
+	printf("Available Page Spaces: %d\n", PageGetFreeSpace(pg));
 
 	/* Found a usable buffer */
 	buf = victims[vic_index];
