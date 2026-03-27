@@ -482,9 +482,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 
 	/* Nothing on the freelist, so run the "clock sweep" algorithm */
 	//NOW WANT TO RUN TOP 10 LRU 
-	trycounter = NBuffers;
 
-	BufferDesc *victims[trycounter];
+	BufferDesc *victims[10]; //array can not be variable length
 	int vic_count = 0;
 	int vic_index = 0;
 
@@ -493,8 +492,23 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		local_buf_state = LockBufHdr(buf);
 
 		if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0 && BUF_STATE_GET_USAGECOUNT(local_buf_state) == 0) {
-			victims[vic_count] = buf;
-			vic_count++;
+			if (vic_count < 10) {
+				victims[vic_count] = buf;
+				vic_count++;
+			} else {
+				// have 10 victims need to find the greatest last accessed time to replace
+				int max_last_accessed = 0;
+				for (int j = 0; j < vic_count; j++) {
+					if (victims[j]->last_accessed > victims[max_last_accessed]->last_accessed) {
+						max_last_accessed = j;
+					}
+				}
+				//when loop is done replace victim with greatest last accessed time if needed
+				if (buf->last_accessed < victims[max_last_accessed]->last_accessed) {
+					victims[max_last_accessed] = buf;
+				}
+
+			}
 		}
 
 
@@ -514,9 +528,9 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 
 	//check if vic_count is more or less than 10 for LRU
 	//if buffer is more than 10 we only want the first 10 for LRU
-	if (vic_count > 10) {
-		vic_count = 10;
-	}
+	// if (vic_count > 10) {
+	// 	vic_count = 10;
+	// }
 
 	//get index of victim to remove, if counter is greater than 10 need to reset counter
 	if (Top10LRU_count >= vic_count) {
@@ -545,7 +559,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	/* Found a usable buffer */
 	BufferDesc *vic_remove = victims[vic_index];
 	local_buf_state = LockBufHdr(vic_remove);
-	vic_remove->last_accessed = timestamp; //Upadate last accessed timestamp for LRU
+	vic_remove->last_accessed = timestamp; //Update last accessed timestamp for LRU
 	timestamp++; //incrase timestamp for next access
 	if (strategy != NULL)
 		AddBufferToRing(strategy, vic_remove);
