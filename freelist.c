@@ -492,7 +492,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		buf = GetBufferDescriptor(i);
 		local_buf_state = LockBufHdr(buf);
 
-		if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0 && BUF_STATE_GET_USAGECOUNT(local_buf_state) == 0) {
+		if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0) {
 			if (vic_count < 10) {
 				victims[vic_count] = buf;
 				vic_count++;
@@ -511,6 +511,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 
 			}
 		}
+		UnlockBufHdr(buf, local_buf_state);
 	}
 
 	//Sort victims by last accessed
@@ -542,29 +543,30 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 			Top10LRU_count = 0; //reset counter, 10 victims removed, reset to c = 0
 		}
 	}
-
-	printf("\nCandidate buffers: ");
-	for (int i = 0; i < vic_count; i ++) {
-		printf("%u:%u", timestamp - victims[i]->last_accessed, victims[i]->last_accessed);
-		if (i != vic_count - 1) {
-			printf(", ");
+	if (vic_index >= 0  ) {
+		printf("\nCandidate buffers: ");
+		for (int i = 0; i < vic_count; i ++) {
+			printf("%u:%u", timestamp - victims[i]->last_accessed, victims[i]->last_accessed);
+			if (i != vic_count - 1) {
+				printf(", ");
+			}
 		}
-	}
-	printf("\nCounter: %d\n", Top10LRU_count);
-	printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
-	pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
-	printf("Available Page Spaces: %ld\n", PageGetFreeSpace(pg));
+		printf("\nCounter: %d\n", Top10LRU_count);
+		printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
+		pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
+		printf("Available Page Spaces: %ld\n", PageGetFreeSpace(pg));
 
-	/* Found a usable buffer */
-	BufferDesc *vic_remove = victims[vic_index];
-	local_buf_state = LockBufHdr(vic_remove);
-	vic_remove->last_accessed = timestamp; //Update last accessed timestamp for LRU
-	timestamp++; //incrase timestamp for next access
-	if (strategy != NULL)
-		AddBufferToRing(strategy, vic_remove);
-	*buf_state = local_buf_state;
-	UnlockBufHdr(buf, local_buf_state);
-	return vic_remove;
+		/* Found a usable buffer */
+		BufferDesc *vic_remove = victims[vic_index];
+		local_buf_state = LockBufHdr(vic_remove);
+		vic_remove->last_accessed = timestamp; //Update last accessed timestamp for LRU
+		timestamp++; //incrase timestamp for next access
+		if (strategy != NULL)
+			AddBufferToRing(strategy, vic_remove);
+		*buf_state = local_buf_state;
+		UnlockBufHdr(buf, local_buf_state);
+		return vic_remove;
+	}
 }
 
 /*
