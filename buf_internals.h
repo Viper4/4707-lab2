@@ -254,7 +254,7 @@ typedef struct BufferDesc
 	int			freeNext;		/* link in freelist chain */
 	LWLock		content_lock;	/* to lock access to buffer contents */
 
-	int last_accessed = 0; // timestamp of last access for Top 10 LRU
+	int last_accessed; // timestamp of last access for Top 10 LRU
 } BufferDesc;
 
 /*
