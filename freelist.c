@@ -356,8 +356,8 @@ have_free_buffer(void)
 // 	}
 // }
 
-int Top10LRU_count = 0;
-int timestamp = 1;
+uint32 Top10LRU_count = 0;
+uint32 timestamp = 1;
 BufferDesc *
 StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring)
 {
@@ -485,8 +485,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	//NOW WANT TO RUN TOP 10 LRU 
 
 	BufferDesc *victims[10]; //array can not be variable length
-	int vic_count = 0;
-	int vic_index = 0;
+	uint32 vic_count = 0;
+	uint32 vic_index = 0;
 
 	for (int i = 0; i < NBuffers; i++) {
 		buf = GetBufferDescriptor(i);
@@ -525,12 +525,6 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		}
 	}
 
-	//check if vic_count is more or less than 10 for LRU
-	//if buffer is more than 10 we only want the first 10 for LRU
-	// if (vic_count > 10) {
-	// 	vic_count = 10;
-	// }
-
 	//get index of victim to remove, if counter is greater than 10 need to reset counter
 	if (Top10LRU_count >= vic_count) {
 		Top10LRU_count = 0; //reset counter, 10 victims removed so reset to c=0
@@ -538,12 +532,9 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		
 	} else {
 		vic_index = Top10LRU_count; 
-		Top10LRU_count++;
-		if (Top10LRU_count >= 10) {
-			Top10LRU_count = 0; //reset counter, 10 victims removed, reset to c = 0
-		}
+		
 	}
-	if (vic_index >= 0  ) {
+	if (vic_index >= 0) {
 		printf("\nCandidate buffers: ");
 		for (int i = 0; i < vic_count; i ++) {
 			printf("%u:%u", timestamp - victims[i]->last_accessed, victims[i]->last_accessed);
@@ -554,7 +545,12 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		printf("\nCounter: %d\n", Top10LRU_count);
 		printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
 		pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
-		printf("Available Page Spaces: %ld\n", PageGetFreeSpace(pg));
+		printf("Available Page Space: %ld\n", PageGetFreeSpace(pg));
+
+		Top10LRU_count++;
+		if (Top10LRU_count >= 10) {
+			Top10LRU_count = 0; //reset counter, 10 victims removed, reset to c = 0
+		}
 
 		/* Found a usable buffer */
 		BufferDesc *vic_remove = victims[vic_index];
@@ -564,7 +560,6 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		if (strategy != NULL)
 			AddBufferToRing(strategy, vic_remove);
 		*buf_state = local_buf_state;
-		UnlockBufHdr(buf, local_buf_state);
 		return vic_remove;
 	}
 }
