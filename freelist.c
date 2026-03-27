@@ -484,7 +484,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	//NOW WANT TO RUN TOP 10 LRU 
 	trycounter = NBuffers;
 
-	BufferDesc *victims[NBuffers];
+	BufferDesc *victims[trycounter];
 	int vic_count = 0;
 	int vic_index = 0;
 
@@ -540,7 +540,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	printf("\nCounter: %d\n", Top10LRU_count);
 	printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
 	Page pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
-	printf("Available Page Spaces: %d\n", PageGetFreeSpace(pg));
+	printf("Available Page Spaces: %ld\n", PageGetFreeSpace(pg));
 
 	/* Found a usable buffer */
 	BufferDesc *vic_remove = victims[vic_index];
