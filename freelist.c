@@ -363,8 +363,9 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 {
 	BufferDesc *buf;
 	int			bgwprocno;
-	int			trycounter;
+	//int			trycounter;
 	uint32		local_buf_state;	/* to avoid repeated (de-)referencing */
+	Page pg;
 
 	*from_ring = false;
 
@@ -510,9 +511,6 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 
 			}
 		}
-
-
-		UnlockBufHdr(buf, local_buf_state);
 	}
 
 	//Sort victims by last accessed
@@ -534,8 +532,9 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 
 	//get index of victim to remove, if counter is greater than 10 need to reset counter
 	if (Top10LRU_count >= vic_count) {
-		vic_index = vic_count -1; //index of victim to remove
 		Top10LRU_count = 0; //reset counter, 10 victims removed so reset to c=0
+		vic_index = vic_count - 1; //index of victim to remove
+		
 	} else {
 		vic_index = Top10LRU_count; 
 		Top10LRU_count++;
@@ -553,7 +552,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	}
 	printf("\nCounter: %d\n", Top10LRU_count);
 	printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
-	Page pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
+	pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
 	printf("Available Page Spaces: %ld\n", PageGetFreeSpace(pg));
 
 	/* Found a usable buffer */
@@ -564,6 +563,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	if (strategy != NULL)
 		AddBufferToRing(strategy, vic_remove);
 	*buf_state = local_buf_state;
+	UnlockBufHdr(buf, local_buf_state);
 	return vic_remove;
 }
 
