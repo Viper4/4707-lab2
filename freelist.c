@@ -357,9 +357,9 @@ have_free_buffer(void)
 // }
 
 uint32 Top10LRU_count = 0;
-uint32 timestamp = 1;
+
 BufferDesc *
-StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring)
+StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring, uint32 timestamp)
 {
 	BufferDesc *buf;
 	int			bgwprocno;
@@ -379,7 +379,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		if (buf != NULL)
 		{
 			buf->last_accessed = timestamp; // Update last accessed timestamp for LRU
-			timestamp++; // Increase timestamp for next access
+			//timestamp++; // Increase timestamp for next access
 			*from_ring = true;
 			return buf;
 		}
@@ -471,7 +471,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 			if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0 && BUF_STATE_GET_USAGECOUNT(local_buf_state) == 0)
 			{
 				buf->last_accessed = timestamp; // Update last accessed timestamp for LRU
-				timestamp++; // Increase timestamp for next access
+				//timestamp++; // Increase timestamp for next access
 				if (strategy != NULL)
 					AddBufferToRing(strategy, buf);
 				*buf_state = local_buf_state;
@@ -556,7 +556,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		BufferDesc *vic_remove = victims[vic_index];
 		local_buf_state = LockBufHdr(vic_remove);
 		vic_remove->last_accessed = timestamp; //Update last accessed timestamp for LRU
-		timestamp++; //incrase timestamp for next access
+		//timestamp++; //incrase timestamp for next access
 		if (strategy != NULL)
 			AddBufferToRing(strategy, vic_remove);
 		*buf_state = local_buf_state;
