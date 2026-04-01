@@ -1216,7 +1216,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
  *
  * No locks are held either at entry or exit.
  */
-uint64 GlobalTimestamp = 0;
+pg_atomic_uint64 GlobalTimestamp = 0;
 static BufferDesc *
 BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 			BlockNumber blockNum,
@@ -1278,8 +1278,10 @@ BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 				*foundPtr = false;
 			}
 		}
-		buf->last_accessed = GlobalTimestamp; // Update last accessed timestamp for LRU
-		GlobalTimestamp++; // Increase timestamp for next access
+		//buf->last_accessed = GlobalTimestamp; // Update last accessed timestamp for LRU
+		//GlobalTimestamp++; // Increase timestamp for next access
+		buf->last_accessed = pg_atomic_read_u64(&GlobalTimestamp); // Update last accessed timestamp for LRU
+		pg_atomic_fetch_add_u64(&GlobalTimestamp, 1);
 		return buf;
 	}
 

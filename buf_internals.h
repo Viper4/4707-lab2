@@ -256,8 +256,8 @@ typedef struct BufferDesc
 
 	uint64 last_accessed; // timestamp of last access for Top 10 LRU
 } BufferDesc;
-extern uint32 Top10LRU_count; // Counter to select ith from top 10 LRU
-extern uint64 GlobalTimestamp; // Consistent global timestamp shared across files for Top 10 LRU
+extern pg_atomic_uint32 Top10LRU_count; // Counter to select ith from top 10 LRU
+extern pg_atomic_uint64 GlobalTimestamp; // Consistent global timestamp shared across files for Top 10 LRU
 
 /*
  * Concurrent access to buffer headers has proven to be more efficient if
