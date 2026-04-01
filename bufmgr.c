@@ -1216,7 +1216,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
  *
  * No locks are held either at entry or exit.
  */
-uint32 timestamp = 1;
+uint64 GlobalTimestamp = 0;
 static BufferDesc *
 BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 			BlockNumber blockNum,
@@ -1278,8 +1278,8 @@ BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 				*foundPtr = false;
 			}
 		}
-		buf->last_accessed = timestamp; // Update last accessed timestamp for LRU
-		timestamp++; // Increase timestamp for next access
+		buf->last_accessed = GlobalTimestamp; // Update last accessed timestamp for LRU
+		GlobalTimestamp++; // Increase timestamp for next access
 		return buf;
 	}
 
@@ -1605,8 +1605,7 @@ again:
 	 * Select a victim buffer.  The buffer is returned with its header
 	 * spinlock still held!
 	 */
-	buf_hdr = StrategyGetBuffer(strategy, &buf_state, &from_ring, timestamp);
-	timestamp++;
+	buf_hdr = StrategyGetBuffer(strategy, &buf_state, &from_ring);
 	buf = BufferDescriptorGetBuffer(buf_hdr);
 
 	Assert(BUF_STATE_GET_REFCOUNT(buf_state) == 0);
