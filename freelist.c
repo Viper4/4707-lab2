@@ -357,7 +357,7 @@ have_free_buffer(void)
 // 	}
 // }
 
-pg_atomic_uint32 Top10LRU_count = 0;
+pg_atomic_uint32 Top10LRU_count;
 
 BufferDesc *
 StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring)
