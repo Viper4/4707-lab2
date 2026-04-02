@@ -24,6 +24,7 @@
 
 #define INT_ACCESS_ONCE(var)	((int)(*((volatile int *)&(var))))
 
+pg_atomic_uint32 Top10LRU_count;
 
 /*
  * The shared freelist control information.
@@ -357,8 +358,6 @@ have_free_buffer(void)
 // 	}
 // }
 
-pg_atomic_uint32 Top10LRU_count;
-
 BufferDesc *
 StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring)
 {
@@ -533,7 +532,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	//get index of victim to remove, if counter is greater than 10 need to reset counter
 	if (pg_atomic_read_u32(&Top10LRU_count) >= vic_count) {
 		//Top10LRU_count = 0; //reset counter, 10 victims removed so reset to c=0
-		pg_atomic_store_u32(&Top10LRU_count, 0);
+		pg_atomic_write_u32(&Top10LRU_count, 0);
 		vic_index = vic_count - 1; //index of victim to remove
 	} else {
 		vic_index = pg_atomic_read_u32(&Top10LRU_count); 
@@ -548,6 +547,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 			}
 		}
 		printf("\nCounter: %d\n", pg_atomic_read_u32(&Top10LRU_count));
+		printf("\n GlobalTimestamp: %" PRIu64, pg_atomic_read_u64(&GlobalTimestamp));
 		printf("Replaced buffer: %" PRIu64 ":%" PRIu64 "\n", pg_atomic_read_u64(&GlobalTimestamp) - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
 		//printf("Replaced buffer: %u:%u\n", GlobalTimestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
 		pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
@@ -557,7 +557,7 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		pg_atomic_fetch_add_u32(&Top10LRU_count, 1);
 		if (pg_atomic_read_u32(&Top10LRU_count) >= 10) {
 			//Top10LRU_count = 0; //reset counter, 10 victims removed, reset to c = 0
-			pg_atomic_store_u32(&Top10LRU_count, 0);
+			pg_atomic_write_u32(&Top10LRU_count, 0);
 		}
 
 		/* Found a usable buffer */
@@ -741,6 +741,9 @@ StrategyInitialize(bool init)
 	}
 	else
 		Assert(!init);
+
+	pg_atomic_init_u64(&GlobalTimestamp, 0);
+	pg_atomic_init_u32(&Top10LRU_count, 0);
 }
 
 
