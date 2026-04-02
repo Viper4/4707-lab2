@@ -24,8 +24,6 @@
 
 #define INT_ACCESS_ONCE(var)	((int)(*((volatile int *)&(var))))
 
-pg_atomic_uint32 Top10LRU_count;
-
 /*
  * The shared freelist control information.
  */
@@ -61,10 +59,47 @@ typedef struct
 	 * StrategyNotifyBgWriter.
 	 */
 	int			bgwprocno;
+
+	pg_atomic_uint32 Top10LRU_count; // Counter for top 10 LRU
+	pg_atomic_uint64 GlobalTimestamp; // Timestamp for LRU
 } BufferStrategyControl;
 
 /* Pointers to shared state */
 static BufferStrategyControl *StrategyControl = NULL;
+
+/* 
+ * Easier access to GlobalTimestamp and Top10LRU_count, and allows other files to access them (like bugmgr.c)
+ * since these are defined in buf_internals.h
+ */
+uint32
+GetTop10LRU_count(void)
+{
+	return pg_atomic_read_u32(&StrategyControl->Top10LRU_count);
+}
+
+void
+ResetTop10LRU_count(void)
+{
+	pg_atomic_write_u32(&StrategyControl->Top10LRU_count, 0);
+}
+
+uint32
+IncrementTop10LRU_count(void)
+{
+	return pg_atomic_fetch_add_u32(&StrategyControl->Top10LRU_count, 1);
+}
+
+uint64
+GetGlobalTimestamp(void)
+{
+    return pg_atomic_read_u64(&StrategyControl->GlobalTimestamp);
+}
+
+uint64
+IncrementGlobalTimestamp(void)
+{
+    return pg_atomic_fetch_add_u64(&StrategyControl->GlobalTimestamp, 1);
+}
 
 /*
  * Private (non-shared) state for managing a ring of shared buffers to re-use.
@@ -378,10 +413,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		buf = GetBufferFromRing(strategy, buf_state);
 		if (buf != NULL)
 		{
-			//buf->last_accessed = GlobalTimestamp; // Update last accessed timestamp for LRU
-			//GlobalTimestamp++; // Increase timestamp for next access
-			buf->last_accessed = pg_atomic_read_u64(&GlobalTimestamp); // Update last accessed timestamp for LRU
-			pg_atomic_fetch_add_u64(&GlobalTimestamp, 1); // Update last accessed timestamp for LRU and increase timestamp for next access atomically
+			buf->last_accessed = GetGlobalTimestamp(); // Update last accessed timestamp for LRU
+			IncrementGlobalTimestamp(); // Update last accessed timestamp for LRU and increase timestamp for next access atomically
 			*from_ring = true;
 			return buf;
 		}
@@ -472,10 +505,8 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 			local_buf_state = LockBufHdr(buf);
 			if (BUF_STATE_GET_REFCOUNT(local_buf_state) == 0 && BUF_STATE_GET_USAGECOUNT(local_buf_state) == 0)
 			{
-				//buf->last_accessed = GlobalTimestamp; // Update last accessed timestamp for LRU
-				//GlobalTimestamp++; // Increase timestamp for next access
-				buf->last_accessed = pg_atomic_read_u64(&GlobalTimestamp); // Update last accessed timestamp for LRU
-				pg_atomic_fetch_add_u64(&GlobalTimestamp, 1); // Update last accessed timestamp for LRU and increase timestamp for next access atomically
+				buf->last_accessed = GetGlobalTimestamp(); // Update last accessed timestamp for LRU
+				IncrementGlobalTimestamp(); // Update last accessed timestamp for LRU and increase timestamp for next access atomically
 				if (strategy != NULL)
 					AddBufferToRing(strategy, buf);
 				*buf_state = local_buf_state;
@@ -529,44 +560,37 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 		}
 	}
 
-	//get index of victim to remove, if counter is greater than 10 need to reset counter
-	if (pg_atomic_read_u32(&Top10LRU_count) >= vic_count) {
-		//Top10LRU_count = 0; //reset counter, 10 victims removed so reset to c=0
-		pg_atomic_write_u32(&Top10LRU_count, 0);
-		vic_index = vic_count - 1; //index of victim to remove
+	// If number of victims is less than counter, then select last victim and reset counter
+	if (GetTop10LRU_count() >= vic_count) {
+		ResetTop10LRU_count(); // Reset counter to 0
+		vic_index = vic_count - 1; //index of last victim to remove
 	} else {
-		vic_index = pg_atomic_read_u32(&Top10LRU_count); 
+		vic_index = GetTop10LRU_count(); 
 	}
 	if (vic_index >= 0) {
 		printf("\nCandidate buffers: ");
 		for (int i = 0; i < vic_count; i ++) {
-			printf("%" PRIu64 ":%" PRIu64, pg_atomic_read_u64(&GlobalTimestamp) - victims[i]->last_accessed, victims[i]->last_accessed);
-			//printf("%u:%u", GlobalTimestamp - victims[i]->last_accessed, victims[i]->last_accessed);
+			printf("%" PRIu64 ":%" PRIu64, GetGlobalTimestamp() - victims[i]->last_accessed, victims[i]->last_accessed);
 			if (i != vic_count - 1) {
 				printf(", ");
 			}
 		}
-		printf("\nCounter: %d\n", pg_atomic_read_u32(&Top10LRU_count));
-		printf("\n GlobalTimestamp: %" PRIu64, pg_atomic_read_u64(&GlobalTimestamp));
-		printf("Replaced buffer: %" PRIu64 ":%" PRIu64 "\n", pg_atomic_read_u64(&GlobalTimestamp) - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
-		//printf("Replaced buffer: %u:%u\n", GlobalTimestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
+		printf("\nCounter: %d\n", GetTop10LRU_count());
+		//printf("\n GlobalTimestamp: %" PRIu64, GetGlobalTimestamp());
+		printf("Replaced buffer: %" PRIu64 ":%" PRIu64 "\n", GetGlobalTimestamp() - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
 		pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
 		printf("Available Page Space: %ld\n", PageGetFreeSpace(pg));
 
-		//Top10LRU_count++;
-		pg_atomic_fetch_add_u32(&Top10LRU_count, 1);
-		if (pg_atomic_read_u32(&Top10LRU_count) >= 10) {
-			//Top10LRU_count = 0; //reset counter, 10 victims removed, reset to c = 0
-			pg_atomic_write_u32(&Top10LRU_count, 0);
+		IncrementTop10LRU_count();
+		if (GetTop10LRU_count() >= 10) {
+			ResetTop10LRU_count(); //reset counter to 0, 10 victims removed
 		}
 
 		/* Found a usable buffer */
 		BufferDesc *vic_remove = victims[vic_index];
 		local_buf_state = LockBufHdr(vic_remove);
-		//vic_remove->last_accessed = GlobalTimestamp; //Update last accessed timestamp for LRU
-		//GlobalTimestamp++; //increase timestamp for next access
-		buf->last_accessed = pg_atomic_read_u64(&GlobalTimestamp); // Update last accessed timestamp for LRU
-		pg_atomic_fetch_add_u64(&GlobalTimestamp, 1); // Update last accessed timestamp for LRU and increase timestamp for next access atomically
+		vic_remove->last_accessed = GetGlobalTimestamp(); // Update last accessed timestamp for LRU
+		IncrementGlobalTimestamp(); // Update last accessed timestamp for LRU and increase timestamp for next access atomically
 		if (strategy != NULL)
 			AddBufferToRing(strategy, vic_remove);
 		*buf_state = local_buf_state;
@@ -742,8 +766,8 @@ StrategyInitialize(bool init)
 	else
 		Assert(!init);
 
-	pg_atomic_init_u64(&GlobalTimestamp, 0);
-	pg_atomic_init_u32(&Top10LRU_count, 0);
+	pg_atomic_init_u64(&StrategyControl->GlobalTimestamp, 0);
+	pg_atomic_init_u32(&StrategyControl->Top10LRU_count, 0);
 }
 
 
