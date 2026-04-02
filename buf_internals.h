@@ -254,7 +254,7 @@ typedef struct BufferDesc
 	int			freeNext;		/* link in freelist chain */
 	LWLock		content_lock;	/* to lock access to buffer contents */
 
-	int last_accessed; // timestamp of last access for Top 10 LRU
+	uint64 last_accessed; // timestamp of last access for Top 10 LRU
 } BufferDesc;
 
 /*
@@ -398,7 +398,7 @@ extern void ScheduleBufferTagForWriteback(WritebackContext *wb_context,
 /* freelist.c */
 extern IOContext IOContextForStrategy(BufferAccessStrategy strategy);
 extern BufferDesc *StrategyGetBuffer(BufferAccessStrategy strategy,
-									 uint32 *buf_state, bool *from_ring, uint32 timestamp);
+									 uint32 *buf_state, bool *from_ring, uint64 timestamp);
 extern void StrategyFreeBuffer(BufferDesc *buf);
 extern bool StrategyRejectBuffer(BufferAccessStrategy strategy,
 								 BufferDesc *buf, bool from_ring);

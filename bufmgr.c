@@ -1216,7 +1216,7 @@ ReadBuffer_common(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
  *
  * No locks are held either at entry or exit.
  */
-uint32 timestamp = 1;
+uint64 timestamp = 1;
 static BufferDesc *
 BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 			BlockNumber blockNum,

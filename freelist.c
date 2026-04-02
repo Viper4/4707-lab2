@@ -359,7 +359,7 @@ have_free_buffer(void)
 uint32 Top10LRU_count = 0;
 
 BufferDesc *
-StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring, uint32 timestamp)
+StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_ring, uint64 timestamp)
 {
 	BufferDesc *buf;
 	int			bgwprocno;
@@ -537,13 +537,13 @@ StrategyGetBuffer(BufferAccessStrategy strategy, uint32 *buf_state, bool *from_r
 	if (vic_index >= 0) {
 		printf("\nCandidate buffers: ");
 		for (int i = 0; i < vic_count; i ++) {
-			printf("%u:%u", timestamp - victims[i]->last_accessed, victims[i]->last_accessed);
+			printf("%lu:%lu", timestamp - victims[i]->last_accessed, victims[i]->last_accessed);
 			if (i != vic_count - 1) {
 				printf(", ");
 			}
 		}
 		printf("\nCounter: %d\n", Top10LRU_count);
-		printf("Replaced buffer: %u:%u\n", timestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
+		printf("Replaced buffer: %lu:%lu\n", timestamp - victims[vic_index]->last_accessed, victims[vic_index]->last_accessed);
 		pg = BufferGetPage(BufferDescriptorGetBuffer(victims[vic_index]));
 		printf("Available Page Space: %ld\n", PageGetFreeSpace(pg));
 
