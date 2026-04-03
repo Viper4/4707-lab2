@@ -254,8 +254,15 @@ typedef struct BufferDesc
 	int			freeNext;		/* link in freelist chain */
 	LWLock		content_lock;	/* to lock access to buffer contents */
 
-	int last_accessed; // timestamp of last access for Top 10 LRU
+	uint64 last_accessed; // timestamp of last access for Top 10 LRU
 } BufferDesc;
+
+extern uint32 GetTop10LRU_count(void);
+extern void ResetTop10LRU_count(void);
+extern uint32 IncrementTop10LRU_count(void);
+
+extern uint64 GetGlobalTimestamp(void);
+extern uint64 IncrementGlobalTimestamp(void);
 
 /*
  * Concurrent access to buffer headers has proven to be more efficient if

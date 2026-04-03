@@ -1,14 +1,21 @@
 Students:
-1. <Student 1 Full Name> (<Student 1 x500>)
+1. Zach Karsko (karsk017)
 2. <Student 2 Full Name> (<Student 2 x500>)
+3. <Student 2 Full Name> (<Student 2 x500>)
 
-Brief Summary:
-<A Brief Summary about the change you make (1 Paragraph max)>
+Brief Summary:<A Brief Summary about the change you make (1 Paragraph max)>
+	A brief summary of the changes we made is we added a last accessed variable to each BufferDesc so we can track when each buffer was last accessed for the Top 10 LRU replacement. Then we had to change the StrategyGetBuffer so it evicts based on the top 10 LRU buffers and not clock sweep. We changed the last part of the StrategyGetBuffer to check all buffer descriptions and get the top 10 last accessed buffers and evict the buffer based on what the top 10 counter is at that time. We also had to modify the BufferAlloc in bufmgr to update the last accessed variable if the page was found in memory.
 
 Detailed Changes:
-1. <Modified File 1>: <The path of the modified file from src directory>
+1. buf_internals.h: postgresql-16.0/src/include/storage
 	- <Detailed changes of the file>.
 	For example: In line xxx, I make a change so that the buffer will do........
 	
-2. <Modified File 2>: <Path from src>
+2. buf_init.c: postgresql-16.0/src/backend/storage/buffer
+	- <Detailed changes of the file>.
+
+3. bufmgr.c: postgresql-16.0/src/backend/storage/buffer
+	- <Detailed changes of the file>.
+
+4. freelist.c: postgresql-16.0/src/backend/storage/buffer
 	- <Detailed changes of the file>.
