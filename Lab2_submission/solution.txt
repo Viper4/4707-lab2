@@ -1,7 +1,7 @@
 Students:
 1. Zach Karsko (karsk017)
-2. <Student 2 Full Name> (<Student 2 x500>)
-3. <Student 2 Full Name> (<Student 2 x500>)
+2. Lucas Giebler (giebl007)
+3. Ayden DeBoer (deboer190)
 
 Brief Summary:<A Brief Summary about the change you make (1 Paragraph max)>
 	A brief summary of the changes we made is we added a last accessed variable to each BufferDesc so we can track when each buffer was last accessed for the Top 10 LRU replacement. Then we had to change the StrategyGetBuffer so it evicts based on the top 10 LRU buffers and not clock sweep. We changed the last part of the StrategyGetBuffer to check all buffer descriptions and get the top 10 last accessed buffers and evict the buffer based on what the top 10 counter is at that time. We also had to modify the BufferAlloc in bufmgr to update the last accessed variable if the page was found in memory.
@@ -9,13 +9,16 @@ Brief Summary:<A Brief Summary about the change you make (1 Paragraph max)>
 Detailed Changes:
 1. buf_internals.h: postgresql-16.0/src/include/storage
 	- <Detailed changes of the file>.
-	For example: In line xxx, I make a change so that the buffer will do........
+	In line 257 we added a variable last_accessed to track when the buffer was last used to determine what buffer is going to be evicted in the Top 10 LRU. Then we added functions in lines 260-265 to access the Top10LRU_count and the GlobalTimestamp as well as adjust their values.
 	
 2. buf_init.c: postgresql-16.0/src/backend/storage/buffer
 	- <Detailed changes of the file>.
+	In line 129 we initialize the last_accessed to 0. Since InitBufferPool initialize shared buffer pool we want to initialize the last_accessed to 0.
 
 3. bufmgr.c: postgresql-16.0/src/backend/storage/buffer
 	- <Detailed changes of the file>.
+	In line 1280 of the function BufferAlloc we update the last accessed to the global timestamp since the buffer was found in the buffer pool so the buffer is being accessed so we need to update the last accessed time for the top 10 LRU replacement has accurate info. Then in line 1281 we need to increment the global timestamp so it is accurate to update the next buffer.
 
 4. freelist.c: postgresql-16.0/src/backend/storage/buffer
 	- <Detailed changes of the file>.
+	In lines 63 we added the variables Top10LRU_count to keep track of the value of the buffer that needs to be evicted based on the Top 10 LRU description. Then in line 64 we added the variable GlobalTimestamp to keep track of what the last_accessed variable should be updated to when the buffer is accessed. Then lines 75-102 help with accessing the variable Top10LRU_count and GlobalTimestamp. These functions allow us to access the variables in this file and other files such as bufmgr.c. Then we had to adjust the function StrategyGetBuffer function to make it Top 10 LRU instead of clock sweep. In line 416 we want to update the buffers last_accessed before it returns the buffer and uses the buffer, and line 417 increases the global timestamp by 1 for the next time the global timestamp is needed. Same for lines 508 and 509. We want to update the last_accessed variable before it returns and uses the buffer, and we want to increase the global timestamp variable for the next buffer. Then in lines 520-598 we got rid of the code used for the clock sweep algorithm and replaced it with our Top 10 LRU algorithm. First in line 522 we needed to create an array of BufferDesc to hold the 10 potential victims. Then in line 523 we created a variable to keep track of the number of victims incase there are not 10 victims. Then line 524 we created a variable to get the index of the victim in the array. Then in lines 526-550 we loop through all the buffers and check if it's being used. If the buffer is not being used we check if the victim array is full. If the array is full we check if the last_accessed time is smaller than one of the victims in the array and replace it otherwise we check the next buffer. If it's not full we add it to the array and increase the vic_count variable. We also call LockBufHdr() and UnlockBufHdr() on the buffer just like the clock sweep algorithm. Then in lines 553-561 we sort the victims since they can get out of order as different buffers are evicted. Then in line 564 we check if the number of victims is greater than the Top 10 LRU counter since we might not have gotten 10 victims. If the victim count is less than the Top 10 LRU counter we reset the counter in line 565, and the to evict index is the index of the last victim added to the array in line 566. Otherwise we set the index that we are going to evict to the Top 10 LRU counter in line 568. Then in lines 570-582 if the index is valid we print the information about the buffers in the array, the buffer we are going to evict, and the Top 10 LRU counter. Then in line 584 we increase the Top 10 LRU counter for next time it's needed. Then lines 584-587 checks if the Top 10 LRU counter is greater than 10 and resets it to 0 if needed. Then line 590 gets the victim. In lines 591 and 592 we update the last_accessed variable and increase the GlobalTimestamp counter so it's ready to return the buffer for use. The lines 594-597 called AddBufferToRing, sets buf_state to local_buf_state and returns the buffer just like the old clock sweep algorithm
