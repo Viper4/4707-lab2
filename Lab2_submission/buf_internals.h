@@ -259,10 +259,10 @@ typedef struct BufferDesc
 
 extern uint32 GetTop10LRU_count(void);
 extern void ResetTop10LRU_count(void);
-extern uint32 IncrementTop10LRU_count(void);
+extern uint32 FetchAddTop10LRU_count(void);
 
 extern uint64 GetGlobalTimestamp(void);
-extern uint64 IncrementGlobalTimestamp(void);
+extern uint64 FetchAddGlobalTimestamp(void);
 
 /*
  * Concurrent access to buffer headers has proven to be more efficient if
