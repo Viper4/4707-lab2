@@ -1277,8 +1277,7 @@ BufferAlloc(SMgrRelation smgr, char relpersistence, ForkNumber forkNum,
 				*foundPtr = false;
 			}
 		}
-		buf->last_accessed = GetGlobalTimestamp(); // Update last accessed timestamp for LRU
-		IncrementGlobalTimestamp();
+		buf->last_accessed = FetchAddGlobalTimestamp(); // Update last accessed timestamp for LRU
 		return buf;
 	}
 
